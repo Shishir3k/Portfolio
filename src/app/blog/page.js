@@ -1,24 +1,24 @@
 "use client";
-import { useState, useEffect } from "react";
+import { useState, useEffect, Suspense } from "react"; 
 import Link from "next/link";
-import { useSearchParams } from "next/navigation";
+import { useSearchParams } from "next/navigation"; 
 import { motion, AnimatePresence } from "framer-motion";
 import { Terminal, ArrowLeft, Search, X } from "lucide-react";
-import { blogPosts as localPosts } from "../../data/posts"; // Rename import to localPosts
 
-// 1. Add Firebase imports
-import { db } from "../../lib/firebase";
+// Local Data & Firebase Imports
+import { blogPosts as localPosts } from "../../data/posts"; 
+import { db } from "../../lib/firebase"; 
 import { collection, getDocs, orderBy, query } from "firebase/firestore";
 
-export default function BlogArchive() {
+// Main Content Component (Separated for Suspense compatibility)
+function BlogContent() {
     const [searchQuery, setSearchQuery] = useState("");
     const [activePost, setActivePost] = useState(null);
-
-    // 2. Create state to hold combined live and local posts
-    const [allPosts, setAllPosts] = useState(localPosts);
+    const [allPosts, setAllPosts] = useState(localPosts); 
+    
     const searchParams = useSearchParams();
 
-    // 3. Fetch live posts from Firebase on load
+    // Fetch live posts from Firebase on load
     useEffect(() => {
         const fetchLivePosts = async () => {
             try {
@@ -28,7 +28,7 @@ export default function BlogArchive() {
                     ...doc.data(),
                     firebaseId: doc.id // keep internal reference
                 }));
-
+                
                 // Combine Firebase logs + Local logs
                 setAllPosts([...liveData, ...localPosts]);
             } catch (error) {
@@ -38,7 +38,7 @@ export default function BlogArchive() {
         fetchLivePosts();
     }, []);
 
-    // 4. Update the URL parameter listener to check the combined array
+    // Open post automatically if ID is in the URL
     useEffect(() => {
         const targetId = searchParams.get("id");
         if (targetId && allPosts.length > 0) {
@@ -49,7 +49,7 @@ export default function BlogArchive() {
         }
     }, [searchParams, allPosts]);
 
-    // 5. Update the filter to run over allPosts instead of blogPosts
+    // Active Live Filtering Feature
     const filteredPosts = allPosts.filter((post) =>
         post.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
         post.category.toLowerCase().includes(searchQuery.toLowerCase()) ||
@@ -174,7 +174,7 @@ export default function BlogArchive() {
                             {/* Core Content Shell - Split layout framework */}
                             <div className="flex-1 overflow-y-auto custom-scrollbar pr-2 space-y-6 lg:space-y-0 lg:grid lg:grid-cols-12 lg:gap-8 min-h-0">
 
-                                {/* Left Metadata Summary Area (Takes 4 columns on desktop) */}
+                                {/* Left Metadata Summary Area */}
                                 <div className="lg:col-span-4 space-y-4 border-b lg:border-b-0 lg:border-r border-zinc-900 pb-6 lg:pb-0 lg:pr-6 shrink-0 h-fit">
                                     <div className="text-[10px] text-zinc-500 font-bold uppercase tracking-wider">
                                         [METADATA_PACKET]
@@ -195,7 +195,7 @@ export default function BlogArchive() {
                                     </div>
                                 </div>
 
-                                {/* Right Scroll Deck (Takes 8 columns on desktop for huge blogs) */}
+                                {/* Right Scroll Deck */}
                                 <div className="lg:col-span-8 space-y-4 font-mono">
                                     <h3 className="text-xl md:text-3xl font-black text-zinc-100 tracking-tight uppercase leading-tight border-b border-zinc-900 pb-3">
                                         &gt; {activePost.title}
@@ -209,7 +209,7 @@ export default function BlogArchive() {
 
                             </div>
 
-                            {/* Bottom Escape Bar - Fixed to bottom */}
+                            {/* Bottom Escape Bar */}
                             <div className="mt-4 pt-4 border-t border-zinc-900 flex justify-between items-center shrink-0">
                                 <span className="text-[9px] text-zinc-600 tracking-widest">STATUS: BUFFER_READ_COMPLETE</span>
                                 <button
@@ -229,5 +229,20 @@ export default function BlogArchive() {
                 DIRECTORY_STREAM // END_OF_TRANSMISSION
             </footer>
         </main>
+    );
+}
+
+// ---------------------------------------------------------
+// Default Export Wrapper to satisfy Next.js Build Requirements
+// ---------------------------------------------------------
+export default function BlogArchive() {
+    return (
+        <Suspense fallback={
+            <div className="min-h-screen bg-zinc-950 flex items-center justify-center text-emerald-500 font-mono text-xs animate-pulse tracking-widest">
+                [INITIALIZING_ARCHIVE_STREAM...]
+            </div>
+        }>
+            <BlogContent />
+        </Suspense>
     );
 }
