@@ -1,30 +1,56 @@
 "use client";
-import { useState, useEffect } from "react"; // 1. Added useEffect here
+import { useState, useEffect } from "react";
 import Link from "next/link";
-import { useSearchParams } from "next/navigation"; // 2. Added navigation hook import
+import { useSearchParams } from "next/navigation";
 import { motion, AnimatePresence } from "framer-motion";
 import { Terminal, ArrowLeft, Search, X } from "lucide-react";
-import { blogPosts } from "../../data/posts";
+import { blogPosts as localPosts } from "../../data/posts"; // Rename import to localPosts
+
+// 1. Add Firebase imports
+import { db } from "../../lib/firebase";
+import { collection, getDocs, orderBy, query } from "firebase/firestore";
 
 export default function BlogArchive() {
     const [searchQuery, setSearchQuery] = useState("");
     const [activePost, setActivePost] = useState(null);
 
-    // 3. Initialize search tracker variables
+    // 2. Create state to hold combined live and local posts
+    const [allPosts, setAllPosts] = useState(localPosts);
     const searchParams = useSearchParams();
 
+    // 3. Fetch live posts from Firebase on load
+    useEffect(() => {
+        const fetchLivePosts = async () => {
+            try {
+                const q = query(collection(db, "blogs"), orderBy("createdAt", "desc"));
+                const querySnapshot = await getDocs(q);
+                const liveData = querySnapshot.docs.map(doc => ({
+                    ...doc.data(),
+                    firebaseId: doc.id // keep internal reference
+                }));
+
+                // Combine Firebase logs + Local logs
+                setAllPosts([...liveData, ...localPosts]);
+            } catch (error) {
+                console.error("Failed to sync live logs:", error);
+            }
+        };
+        fetchLivePosts();
+    }, []);
+
+    // 4. Update the URL parameter listener to check the combined array
     useEffect(() => {
         const targetId = searchParams.get("id");
-        if (targetId) {
-            const matchedPost = blogPosts.find((p) => p.id === targetId);
+        if (targetId && allPosts.length > 0) {
+            const matchedPost = allPosts.find((p) => p.id === targetId);
             if (matchedPost) {
                 setActivePost(matchedPost);
             }
         }
-    }, [searchParams]);
+    }, [searchParams, allPosts]);
 
-    // Active Live Filtering Feature
-    const filteredPosts = blogPosts.filter((post) =>
+    // 5. Update the filter to run over allPosts instead of blogPosts
+    const filteredPosts = allPosts.filter((post) =>
         post.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
         post.category.toLowerCase().includes(searchQuery.toLowerCase()) ||
         post.summary.toLowerCase().includes(searchQuery.toLowerCase())
